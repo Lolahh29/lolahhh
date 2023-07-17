@@ -1929,7 +1929,6 @@ MaterialService = game:GetService("MaterialService")
 
 sethidden = sethiddenproperty or set_hidden_property or set_hidden_prop
 gethidden = gethiddenproperty or get_hidden_property or get_hidden_prop
-setsimulation = setsimulationradius or set_simulation_radius
 queueteleport = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport)
 httprequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 PlaceId, JobId = game.PlaceId, game.JobId
@@ -2127,7 +2126,7 @@ eventEditor = (function()
 				end
 
 				if metCondition then
-					pcall(coroutine.wrap(function()
+					pcall(task.spawn(function()
 						local cmdStr = cmd[1]
 						for count,arg in pairs(args) do
 							cmdStr = cmdStr:gsub("%$"..count,arg)
@@ -2822,7 +2821,7 @@ function saves()
 					if json.currentText1 ~= nil then currentText1 = Color3.new(json.currentText1[1],json.currentText1[2],json.currentText1[3]) end
 					if json.currentText2 ~= nil then currentText2 = Color3.new(json.currentText2[1],json.currentText2[2],json.currentText2[3]) end
 					if json.currentScroll ~= nil then currentScroll = Color3.new(json.currentScroll[1],json.currentScroll[2],json.currentScroll[3]) end
-					if json.eventBinds then loadedEventData = json.eventBinds end
+					if json.eventBinds ~= nil then loadedEventData = json.eventBinds end
 				end)
 				if not success then
 					warn("Save Json Error:", response)
@@ -2987,9 +2986,7 @@ if #AllWaypoints > 0 then
 	end
 end
 
-if type(binds) ~= "table" then
-    binds = {}
-end
+if type(binds) ~= "table" then binds = {} end
 
 function Time()
 	local HOUR = math.floor((tick() % 86400) / 3600)
@@ -3207,8 +3204,6 @@ IYMouse.KeyDown:Connect(function(Key)
 			repeat Cmdbar.Text = '' until Cmdbar.Text == ''
 		end)
 		maximizeHolder()
-	elseif infJump == true and Key == " " then
-		Players.LocalPlayer.Character:FindFirstChildOfClass('Humanoid'):ChangeState(3)
 	end
 end)
 
@@ -3785,6 +3780,14 @@ if not writefileExploit() then
 	notify('Saves','Your exploit does not support read/write file. Your settings will not save.')
 end
 
+ChatLog = function(plr)
+	plr.Chatted:Connect(function(Message)
+		if logsEnabled == true then
+			CreateLabel(plr.Name,Message)
+		end
+	end)
+end
+
 JoinLog = function(plr)
 	if jLogsEnabled == true then
 		CreateJoinLabel(plr,plr.UserId)
@@ -3825,31 +3828,11 @@ SaveChatlogs.MouseButton1Down:Connect(function()
 	end
 end)
 
-task.spawn(function()
-	coroutine.resume(coroutine.create(function()
-		local ChatEvents = ReplicatedStorage:WaitForChild("DefaultChatSystemChatEvents", math.huge)
-		local OnMessageEvent = ChatEvents:WaitForChild("OnMessageDoneFiltering", math.huge)
-        if OnMessageEvent:IsA("RemoteEvent") then
-            OnMessageEvent.OnClientEvent:Connect(function(data)
-                if data ~= nil then
-                    local player = tostring(data.FromSpeaker)
-                    local message = tostring(data.Message)
-                    local originalchannel = tostring(data.OriginalChannel)
-                    if string.find(originalchannel, "To ") then
-                        message = "/w " .. string.gsub(originalchannel, "To ", "") .. " " .. message
-                    end
-                    if originalchannel == "Team" then
-                        message = "/team " .. message
-                    end
-                    eventEditor.FireEvent("OnChatted", player, message)
-                    if logsEnabled then
-                        CreateLabel(player, message)
-                    end
-                end
-            end)
-        end
-	end))
-end)
+for _, plr in pairs(Players:GetChildren()) do
+	if plr.ClassName == "Player" then
+		ChatLog(plr)
+	end
+end
 
 Players.PlayerRemoving:Connect(function(player)
 	if ESPenabled or CHMSenabled or COREGUI:FindFirstChild(player.Name..'_LC') then
@@ -4268,7 +4251,7 @@ CMDs[#CMDs + 1] = {NAME = 'discord / support / help', DESC = 'Invite to the Infi
 CMDs[#CMDs + 1] = {NAME = 'console', DESC = 'Loads old Roblox console'}
 CMDs[#CMDs + 1] = {NAME = 'explorer / dex', DESC = 'Opens DEX by Moon'}
 CMDs[#CMDs + 1] = {NAME = 'olddex / odex', DESC = 'Opens Old DEX by Moon'}
-CMDs[#CMDs + 1] = {NAME = 'remotespy / rspy', DESC = 'Opens FrostHook Spy'}
+CMDs[#CMDs + 1] = {NAME = 'remotespy / rspy', DESC = 'Opens Simple Spy V3'}
 CMDs[#CMDs + 1] = {NAME = 'audiologger / alogger', DESC = 'Opens Edges audio logger'}
 CMDs[#CMDs + 1] = {NAME = 'serverinfo / info', DESC = 'Gives you info about the server'}
 CMDs[#CMDs + 1] = {NAME = 'jobid', DESC = 'Copies the games JobId to your clipboard'}
@@ -5231,7 +5214,7 @@ SpecialPlayerCases = {
                 local clone = Instance.new("Player")
                 clone.Name = v.Name .. " - " .. v:FindFirstChildWhichIsA("Humanoid").DisplayName
                 clone.Character = v
-                table.insert(returns, v)
+                table.insert(returns, clone)
             end
         end
 		return returns
@@ -5398,7 +5381,7 @@ local tabComplete = nil
 tabAllowed = true
 Cmdbar.FocusLost:Connect(function(enterpressed)
 	if enterpressed then
-		local cmdbarText = Cmdbar.Text:gsub("^"..'%'..prefix,"")
+		local cmdbarText = Cmdbar.Text:gsub("^"..prefix,"")
 		execCmd(cmdbarText,Players.LocalPlayer,true)
 	end
 	if tabComplete then tabComplete:Disconnect() end
@@ -6678,13 +6661,13 @@ addcmd('serverhop',{'shop'},function(args, speaker)
 	-- thanks to NoobSploit for fixing
 	if httprequest then
 		local servers = {}
-		local req = httprequest({Url = string.format("https://games.roblox.com/v1/games/%s/servers/Public?sortOrder=Asc&limit=100", PlaceId)})
+		local req = httprequest({Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100", PlaceId)})
 		local body = HttpService:JSONDecode(req.Body)
 		if body and body.data then
 			for i, v in next, body.data do
 				if type(v) == "table" and tonumber(v.playing) and tonumber(v.maxPlayers) and v.playing < v.maxPlayers and v.id ~= JobId then
 					table.insert(servers, 1, v.id)
-				end 
+				end
 			end
 		end
 		if #servers > 0 then
@@ -7605,7 +7588,7 @@ addcmd('antilag',{'boostfps','lowgraphics'},function(args, speaker)
 		end
 	end
 	workspace.DescendantAdded:Connect(function(child)
-		coroutine.wrap(function()
+		task.spawn(function()
 			if child:IsA('ForceField') then
 				RunService.Heartbeat:Wait()
 				child:Destroy()
@@ -7616,7 +7599,7 @@ addcmd('antilag',{'boostfps','lowgraphics'},function(args, speaker)
 				RunService.Heartbeat:Wait()
 				child:Destroy()
 			end
-		end)()
+		end)
 	end)
 end)
 
@@ -8923,7 +8906,7 @@ addcmd('unmuteboombox',{},function(args, speaker)
 end)
 
 addcmd('reset',{},function(args, speaker)
-	speaker.Character:BreakJoints()
+	speaker.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
 end)
 
 addcmd('freezeanims',{},function(args, speaker)
@@ -9414,19 +9397,31 @@ addcmd('jump',{},function(args, speaker)
 	speaker.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
 end)
 
+local infJump
+local infJumpDebounce = false
 addcmd('infjump',{'infinitejump'},function(args, speaker)
-	infJump = true
+    if infJump then infJump:Disconnect() end
+    infJumpDebounce = false
+    infJump = UserInputService.JumpRequest:Connect(function()
+        if not infJumpDebounce then
+            infJumpDebounce = true
+            speaker.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+            wait()
+            infJumpDebounce = false
+        end
+    end)
 end)
 
 addcmd('uninfjump',{'uninfinitejump','noinfjump','noinfinitejump'},function(args, speaker)
-	infJump = false
+    if infJump then infJump:Disconnect() end
+    infJumpDebounce = false
 end)
 
 local flyjump
 addcmd('flyjump',{},function(args, speaker)
 	if flyjump then flyjump:Disconnect() end
 	flyjump = UserInputService.JumpRequest:Connect(function(Jump)
-		Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+		Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
 	end)
 end)
 
@@ -9962,7 +9957,7 @@ end)
 
 addcmd('explorer', {'dex'}, function(args, speaker)
     notify('Loading', 'Hold on a sec')
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/peyton2465/Dex/master/out.lua"))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()
 end)
 
 addcmd('olddex', {'odex'}, function(args, speaker)
@@ -10032,9 +10027,9 @@ addcmd('olddex', {'odex'}, function(args, speaker)
 
         local function LoadScripts(_, Script)
             if Script:IsA("LocalScript") then
-                coroutine.wrap(function()
+                task.spawn(function()
                     GiveOwnGlobals(loadstring(Script.Source,"="..Script:GetFullName()), Script)()
-                end)()
+                end)
             end
             table.foreach(Script:GetChildren(), LoadScripts)
         end
@@ -10699,30 +10694,37 @@ addcmd('clearhats',{'cleanhats'},function(args, speaker)
 		local Character = Player.Character
 		local Old = Character:FindFirstChild("HumanoidRootPart").CFrame
 		local Hats = {}
-		for _,x in next, workspace:GetChildren() do
-			if x:IsA("Accessory") then
-				table.insert(Hats,x)
+		
+		for _, child in ipairs(workspace:GetChildren()) do
+			if child:IsA("Accessory") then
+				table.insert(Hats, child)
 			end
 		end
-		for _,getacc in next, Character:FindFirstChildOfClass('Humanoid'):GetAccessories() do
-			getacc:Destroy()
+		
+		for _, accessory in ipairs(Character:FindFirstChildOfClass("Humanoid"):GetAccessories()) do
+			accessory:Destroy()
 		end
-		for i = 1,#Hats do
+		
+		for i = 1, #Hats do
 			repeat RunService.Heartbeat:wait() until Hats[i]
 			firetouchinterest(Hats[i].Handle,Character:FindFirstChild("HumanoidRootPart"),0)
 			repeat RunService.Heartbeat:wait() until Character:FindFirstChildOfClass("Accessory")
 			Character:FindFirstChildOfClass("Accessory"):Destroy()
 			repeat RunService.Heartbeat:wait() until not Character:FindFirstChildOfClass("Accessory")
 		end
-		Character:BreakJoints()
-		Player.CharacterAdded:wait()
-		for i = 1,20 do RunService.Heartbeat:wait()
+		
+		execCmd("reset")
+		
+		Player.CharacterAdded:Wait()
+		
+		for i = 1,20 do 
+			RunService.Heartbeat:Wait()
 			if Player.Character:FindFirstChild("HumanoidRootPart") then
 				Player.Character:FindFirstChild("HumanoidRootPart").CFrame = Old
 			end
 		end
 	else
-		notify('Incompatible Exploit','Your exploit does not support this command (missing firetouchinterest)')
+		notify("Incompatible Exploit","Your exploit does not support this command (missing firetouchinterest)")
 	end
 end)
 
@@ -10818,7 +10820,7 @@ addcmd('dupetools', {'clonetools'}, function(args, speaker)
 		local t = GetHandleTools(speaker)
 		while #t > 0 do
 			for _, v in ipairs(t) do
-				coroutine.wrap(function()
+				task.spawn(function()
 					for _ = 1, 25 do
 						v.Parent = speaker.Character
 						v.Handle.Anchored = true
@@ -10827,7 +10829,7 @@ addcmd('dupetools', {'clonetools'}, function(args, speaker)
 						v.Parent = workspace
 					end
 					table.insert(Tools, v.Handle)
-				end)()
+				end)
 			end
 			t = GetHandleTools(speaker)
 		end
@@ -10842,7 +10844,7 @@ addcmd('dupetools', {'clonetools'}, function(args, speaker)
 				end
 			else
 				for _, v in ipairs(Tools) do
-					coroutine.wrap(function()
+					task.spawn(function()
 						local x = v.CanCollide
 						v.CanCollide = false
 						v.Anchored = false
@@ -10851,7 +10853,7 @@ addcmd('dupetools', {'clonetools'}, function(args, speaker)
 							wait()
 						end
 						v.CanCollide = x
-					end)()
+					end)
 				end
 			end
 			wait(.1)
@@ -10873,9 +10875,9 @@ addcmd('givetool', {'givetools'}, function(args, speaker)
 	hum.Parent = Char
 	hum:ClearAllChildren()
 	speaker:ClearCharacterAppearance()
-	coroutine.wrap(function()
+	task.spawn(function()
 		speaker.CharacterAdded:Wait():WaitForChild('Humanoid').RootPart.CFrame = wait() and hrppos
-	end)()
+	end)
 	local vHRP = getRoot(v)
 	while Char and Char.Parent and vHRP and vHRP.Parent do
 		local Tools = false
@@ -11151,7 +11153,7 @@ addcmd('usetools', {}, function(args, speaker)
 	local delay_ = tonumber(args[2]) or false
 	for _, v in ipairs(Backpack:GetChildren()) do
 		v.Parent = speaker.Character
-		coroutine.wrap(function()
+		task.spawn(function()
 			for _ = 1, ammount do
 				v:Activate()
 				if delay_ then
@@ -11159,7 +11161,7 @@ addcmd('usetools', {}, function(args, speaker)
 				end
 			end
 			v.Parent = Backpack
-		end)()
+		end)
 	end
 end)
 
@@ -12142,8 +12144,10 @@ end
 
 Players.PlayerAdded:Connect(function(plr)
 	eventEditor.FireEvent("OnJoin",plr.Name)
+	plr.Chatted:Connect(function(msg) eventEditor.FireEvent("OnChatted",tostring(plr),msg) end)
 	plr.CharacterAdded:Connect(function() eventEditor.FireEvent("OnSpawn",tostring(plr)) hookCharEvents(plr) end)
 	JoinLog(plr)
+	ChatLog(plr)
 	if ESPenabled then
 		repeat wait(1) until plr.Character and getRoot(plr.Character)
 		ESP(plr)
@@ -12289,20 +12293,19 @@ task.spawn(function()
 	end
 end)
 
-coroutine.wrap(function()
+task.spawn(function()
 	wait()
 	Credits:TweenPosition(UDim2.new(0, 0, 0.9, 0), "Out", "Quart", 0.2)
 	Logo:TweenSizeAndPosition(UDim2.new(0, 175, 0, 175), UDim2.new(0, 37, 0, 45), "Out", "Quart", 0.3)
 	wait(1)
-	for i = 0, 1, 0.1 do
-		Logo.ImageTransparency = i
-		IntroBackground.BackgroundTransparency = i
-		wait()
-	end
+	local OutInfo = TweenInfo.new(1.6809, Enum.EasingStyle.Sine, Enum.EasingDirection.Out, 0, false, 0)
+	TweenService:Create(Logo, OutInfo, {ImageTransparency = 1}):Play()
+	TweenService:Create(IntroBackground, OutInfo, {BackgroundTransparency = 1}):Play()
 	Credits:TweenPosition(UDim2.new(0, 0, 0.9, 30), "Out", "Quart", 0.2)
 	wait(0.2)
 	Logo:Destroy()
 	Credits:Destroy()
 	IntroBackground:Destroy()
 	minimizeHolder()
-end)()
+	if table.find({Enum.Platform.IOS, Enum.Platform.Android}, UserInputService:GetPlatform()) then notify("Unstable Device", "On mobile, Infinite Yield may have issues or features that are not functioning correctly.") end
+end)
